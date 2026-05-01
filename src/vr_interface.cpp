@@ -1,5 +1,7 @@
 #include "vive_ros/vr_interface.h"
 
+#include <unistd.h>
+
 #include <algorithm>
 #include <iostream>
 #include <map>
@@ -66,10 +68,45 @@ VRInterface::VRInterface()
 
 VRInterface::~VRInterface() = default;
 
-bool VRInterface::Init()
+bool VRInterface::Init(const std::string & app_key, const std::string & manifest_path)
 {
+  // Newer SteamVR (>= 1.18) refuses to fully init a session for processes
+  // that have no app key — you would see
+  //   "Unable to init path manager: VRInitError_Init_Internal"
+  // in ~/.local/share/Steam/logs/vrclient_<app>.txt. We pass our app_key via
+  // VR_Init's pStartupInfo JSON so vrclient.so adopts it before talking to
+  // vrserver, and (optionally) register a manifest so SteamVR recognises the
+  // key.
+  if (!manifest_path.empty()) {
+    // Best-effort: register the manifest from a short Utility init. Failures
+    // here are non-fatal because pStartupInfo also carries the app key.
+    vr::EVRInitError uErr = vr::VRInitError_None;
+    vr::VR_Init(&uErr, vr::VRApplication_Utility);
+    if (uErr == vr::VRInitError_None) {
+      auto * apps = vr::VRApplications();
+      if (apps) {
+        vr::EVRApplicationError appErr =
+          apps->AddApplicationManifest(manifest_path.c_str(), true);
+        if (appErr != vr::VRApplicationError_None) {
+          info_(std::string("AddApplicationManifest(") + manifest_path + ") -> " +
+            apps->GetApplicationsErrorNameFromEnum(appErr) + " (continuing)");
+        }
+      }
+      vr::VR_Shutdown();
+    } else {
+      info_(std::string("Utility VR_Init for manifest failed: ") +
+        vr::VR_GetVRInitErrorAsEnglishDescription(uErr) + " (continuing)");
+    }
+  }
+
+  // STEAMVR_APPKEY is read by vrclient.so / vrserver and used as this
+  // process's "Builtin AppInfo" entry, satisfying SteamVR's requirement
+  // that every connecting process advertise an app key.
+  setenv("STEAMVR_APPKEY", app_key.c_str(), /*overwrite=*/1);
+
+  const std::string startup_info = std::string("{\"app_key\":\"") + app_key + "\"}";
   vr::EVRInitError eError = vr::VRInitError_None;
-  pHMD_ = vr::VR_Init(&eError, vr::VRApplication_Background);
+  pHMD_ = vr::VR_Init(&eError, vr::VRApplication_Other, startup_info.c_str());
 
   if (eError != vr::VRInitError_None) {
     pHMD_ = nullptr;

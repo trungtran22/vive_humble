@@ -2,6 +2,7 @@
 // Originally written by Jonathan Osterberg; ported to ROS 2 (Humble).
 
 #include "vive_ros/vive_pose.h"
+#include "vive_ros/vr_interface.h"
 
 #include <bitset>
 #include <cmath>
@@ -9,6 +10,7 @@
 #include <memory>
 #include <string>
 
+#include <ament_index_cpp/get_package_share_directory.hpp>
 #include <rclcpp/rclcpp.hpp>
 
 #include <geometry_msgs/msg/pose_stamped.hpp>
@@ -151,17 +153,27 @@ void GetControllerState(
 
 int main(int argc, char * argv[])
 {
-  vr::EVRInitError eError = vr::VRInitError_None;
-  vr::IVRSystem * vr_pointer = vr::VR_Init(&eError, vr::VRApplication_Background);
-  if (eError != vr::VRInitError_None) {
-    std::fprintf(
-      stderr, "Unable to init VR runtime: %s\n",
-      vr::VR_GetVRInitErrorAsEnglishDescription(eError));
-    return 1;
-  }
-
   rclcpp::init(argc, argv);
   auto node = rclcpp::Node::make_shared("vive_publisher");
+
+  // Use VRInterface helper to handle the manifest + pStartupInfo dance that
+  // newer SteamVR requires (avoids "Unable to init path manager:
+  // VRInitError_Init_Internal").
+  vive_ros::VRInterface vr;
+  std::string manifest_path;
+  try {
+    manifest_path =
+      ament_index_cpp::get_package_share_directory("vive_ros") +
+      "/manifest/vive_ros.vrmanifest";
+  } catch (const std::exception & e) {
+    RCLCPP_WARN(node->get_logger(), "Could not locate vive_ros manifest: %s", e.what());
+  }
+  if (!vr.Init("vive_ros.vive_pose", manifest_path)) {
+    RCLCPP_FATAL(node->get_logger(), "VR_Init failed.");
+    rclcpp::shutdown();
+    return 1;
+  }
+  vr::IVRSystem * vr_pointer = vr.pHMD_;
 
   const std::string frame_id =
     node->declare_parameter<std::string>("frame_id", "base");
@@ -223,10 +235,7 @@ int main(int argc, char * argv[])
     loop_rate.sleep();
   }
 
-  if (vr_pointer != nullptr) {
-    vr::VR_Shutdown();
-    vr_pointer = nullptr;
-  }
+  vr.Shutdown();
   rclcpp::shutdown();
   return 0;
 }

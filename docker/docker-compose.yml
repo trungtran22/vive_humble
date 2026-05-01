@@ -7,20 +7,43 @@ services:
     container_name: vive_ros
     network_mode: host
     ipc: host
+    pid: host
     privileged: true
+    # Run as the host user so the SteamVR POSIX shared-memory objects
+    # (`/dev/shm/u<uid>-_<pid>-ValveIPCSharedObj-SteamVR`) are accessible —
+    # they are tagged with the creating UID, not opened world-readable.
+    user: "${UID:-1000}:${GID:-1000}"
+    # Use the host user's HOME path inside the container so that
+    # ~/.config/openvr/openvrpaths.vrpath (which contains absolute host paths
+    # like /home/<user>/.local/share/Steam/...) keeps resolving correctly when
+    # the OpenVR client reads it.
     environment:
+      - HOME=${HOME}
+      # Docker auto-creates ${HOME} as a root-owned stub when we bind-mount
+      # subdirs into it, so the unprivileged container user can't write
+      # ${HOME}/.ros there. Send ROS logs somewhere writable instead.
+      - ROS_LOG_DIR=/tmp/vive_ros_log
       - ROS_DOMAIN_ID=${ROS_DOMAIN_ID:-0}
       - DISPLAY=${DISPLAY}
+      - XAUTHORITY=${XAUTHORITY:-${HOME}/.Xauthority}
       - QT_X11_NO_MITSHM=1
       - NVIDIA_VISIBLE_DEVICES=all
       - NVIDIA_DRIVER_CAPABILITIES=all
     volumes:
-      - /tmp/.X11-unix:/tmp/.X11-unix:rw
+      # /tmp must be the host's /tmp because SteamVR's vrserver advertises its
+      # IPC control file as /tmp/SteamVR-IPCControlFile-<pid>. This also gives
+      # us the X11 socket at /tmp/.X11-unix.
+      - /tmp:/tmp:rw
+      - ${XAUTHORITY:-${HOME}/.Xauthority}:${XAUTHORITY:-${HOME}/.Xauthority}:ro
       - /dev:/dev
-      # Mount your host's Steam install so vrserver can run from inside.
-      # Comment these out if you only want to run the ROS nodes (not vrserver).
-      - ${HOME}/.steam:/root/.steam:rw
-      - ${HOME}/.local/share/Steam:/root/.local/share/Steam:rw
+      # Per-user runtime dir (D-Bus session bus, more SteamVR sockets).
+      - /run/user/${UID:-1000}:/run/user/${UID:-1000}:rw
+      # Mount the host's Steam install + OpenVR config at the SAME paths used
+      # on the host. SteamVR is expected to be running on the host; the
+      # in-container OpenVR client will talk to host vrserver through these.
+      - ${HOME}/.steam:${HOME}/.steam:rw
+      - ${HOME}/.local/share/Steam:${HOME}/.local/share/Steam:rw
+      - ${HOME}/.config/openvr:${HOME}/.config/openvr:rw
     devices:
       - /dev/dri:/dev/dri
     command: ros2 launch vive_ros vive.launch.py

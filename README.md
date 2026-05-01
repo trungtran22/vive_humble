@@ -49,6 +49,22 @@ contributed `vive_pose.cpp`. The package now provides:
 The provided Dockerfile builds OpenVR `v2.5.1` from source and the workspace on
 top of `osrf/ros:humble-desktop`.
 
+### Prerequisites on the host
+1. **Steam + SteamVR are installed and SteamVR is running** (we talk to the
+   host's `vrserver` via shared memory and `/tmp/SteamVR-IPCControlFile-*`).
+2. The Vive headset has completed first-time setup in SteamVR (Room Setup,
+   pairing, etc.).
+3. Hardware udev rules are installed (`60-HTC-Vive-perms.rules`, see below).
+4. **Tell SteamVR about our app once** so its app-key check accepts the
+   container's `vive_node` / `vive_pose`:
+
+   ```bash
+   ./scripts/register_steamvr_app.sh
+   # then quit and re-launch SteamVR
+   ```
+
+### Build & run
+
 ```bash
 # from the repo root
 docker build -t vive_ros:humble -f docker/Dockerfile .
@@ -56,7 +72,8 @@ docker build -t vive_ros:humble -f docker/Dockerfile .
 # allow the container to reach your X server (one-shot)
 xhost +local:root
 
-# launch the main node (mounts /dev, /tmp/.X11-unix and your Steam install)
+# launch the main node
+export UID GID=$(id -g)        # the container has to run as your host UID
 docker compose -f docker/docker-compose.yml up vive_ros
 ```
 
@@ -65,20 +82,29 @@ and the entrypoint sources both `/opt/ros/humble/setup.bash` and the overlay.
 You can drop into a shell with:
 
 ```bash
+export UID GID=$(id -g)
 docker compose -f docker/docker-compose.yml run --rm vive_ros bash
 # then
-ros2 launch vive_ros vive.launch.py        # main node + corrective TF
+ros2 launch vive_ros vive.launch.py              # main node + corrective TF
 ros2 launch vive_ros controller_pose.launch.py   # standalone pose publisher
 ros2 run vive_ros vive_node
 ros2 run vive_ros vive_pose
 ```
 
-> **About SteamVR.** The container only ships the OpenVR SDK; it does **not**
-> bundle Steam or SteamVR. To actually talk to the headset, SteamVR (i.e.
-> `vrserver`) needs to be running. The docker-compose file mounts your host's
-> Steam install at `~/.steam` and `~/.local/share/Steam` into the container
-> so the OpenVR client can reach `vrserver`. The simplest setup is to start
-> SteamVR on the host and run the ROS nodes inside the container.
+> **Why the host UID?** SteamVR's POSIX shared-memory objects in `/dev/shm`
+> are tagged with the creating UID (`u<uid>-_<pid>-ValveIPCSharedObj-SteamVR`).
+> If the container runs as `root` (UID 0) it cannot reach the host user's
+> SteamVR objects, and `vrclient.so` fails with
+> `VR_Init: vrserver internal error (124)` /
+> `Unable to init path manager: VRInitError_Init_Internal`. The compose file
+> sets `user: ${UID}:${GID}` so the container runs as your host user.
+
+> **About SteamVR.** The container ships the OpenVR SDK only; it does **not**
+> bundle Steam or SteamVR. The docker-compose file bind-mounts your host's
+> `~/.steam`, `~/.local/share/Steam`, `~/.config/openvr`, `/tmp` and
+> `/run/user/<uid>` into the container so the OpenVR client can reach the
+> host's `vrserver`. The simplest setup is to keep SteamVR running on the
+> host and launch the ROS nodes inside the container.
 
 ## Native (host) install
 

@@ -51,6 +51,7 @@ set(OPENVR_INCLUDE_DIRS
 )
 
 find_package(ament_cmake REQUIRED)
+find_package(ament_index_cpp REQUIRED)
 find_package(rclcpp REQUIRED)
 find_package(std_msgs REQUIRED)
 find_package(std_srvs REQUIRED)
@@ -72,6 +73,7 @@ add_executable(vive_node
   src/vr_interface.cpp
 )
 ament_target_dependencies(vive_node
+  ament_index_cpp
   rclcpp
   std_msgs
   std_srvs
@@ -89,8 +91,10 @@ target_link_libraries(vive_node
 # vive_pose: minimal absolute-pose publisher
 add_executable(vive_pose
   src/vive_pose.cpp
+  src/vr_interface.cpp
 )
 ament_target_dependencies(vive_pose
+  ament_index_cpp
   rclcpp
   std_msgs
   geometry_msgs
@@ -117,6 +121,10 @@ install(PROGRAMS
 )
 
 install(DIRECTORY launch
+  DESTINATION share/${PROJECT_NAME}
+)
+
+install(DIRECTORY share/manifest
   DESTINATION share/${PROJECT_NAME}
 )
 

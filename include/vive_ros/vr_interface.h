@@ -23,7 +23,13 @@ public:
   VRInterface();
   ~VRInterface();
 
-  bool Init();
+  /// Initialise SteamVR. `app_key` is required by recent SteamVR versions
+  /// (otherwise VR_Init returns Init_Internal "Unable to init path manager"
+  /// for any non-Steam-launched process). It is passed to vrclient.so via the
+  /// VR_Init pStartupInfo JSON. `manifest_path`, when non-empty, is registered
+  /// (temporarily) with SteamVR before VR_Init so that the app key is known.
+  bool Init(const std::string & app_key = "vive_ros.vive_node",
+    const std::string & manifest_path = "");
   void Shutdown();
 
   void Update();

@@ -1,0 +1,29 @@
+{
+  "source": "builtin",
+  "applications": [
+    {
+      "app_key": "vive_ros.vive_node",
+      "launch_type": "binary",
+      "binary_path_linux": "/ros2_ws/install/vive_ros/lib/vive_ros/vive_node",
+      "is_dashboard_overlay": false,
+      "strings": {
+        "en_us": {
+          "name": "vive_ros::vive_node",
+          "description": "HTC Vive ROS 2 driver (vive_node)"
+        }
+      }
+    },
+    {
+      "app_key": "vive_ros.vive_pose",
+      "launch_type": "binary",
+      "binary_path_linux": "/ros2_ws/install/vive_ros/lib/vive_ros/vive_pose",
+      "is_dashboard_overlay": false,
+      "strings": {
+        "en_us": {
+          "name": "vive_ros::vive_pose",
+          "description": "HTC Vive ROS 2 controller pose publisher"
+        }
+      }
+    }
+  ]
+}

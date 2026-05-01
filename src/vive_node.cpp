@@ -9,6 +9,7 @@
 #include <string>
 #include <vector>
 
+#include <ament_index_cpp/get_package_share_directory.hpp>
 #include <rclcpp/rclcpp.hpp>
 
 #include <geometry_msgs/msg/pose_stamped.hpp>
@@ -79,7 +80,16 @@ public:
     vr_.setErrorMsgCallback(
       [this](const std::string & m) {RCLCPP_ERROR(get_logger(), " [VIVE] %s", m.c_str());});
 
-    return vr_.Init();
+    std::string manifest_path;
+    try {
+      manifest_path =
+        ament_index_cpp::get_package_share_directory("vive_ros") +
+        "/manifest/vive_ros.vrmanifest";
+    } catch (const std::exception & e) {
+      RCLCPP_WARN(
+        get_logger(), "Could not locate vive_ros manifest (%s); continuing.", e.what());
+    }
+    return vr_.Init("vive_ros.vive_node", manifest_path);
   }
 
   void Shutdown()
