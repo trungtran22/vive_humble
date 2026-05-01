@@ -1,0 +1,9 @@
+.git
+.gitignore
+build
+install
+log
+*.user
+.vscode
+.idea
+__pycache__

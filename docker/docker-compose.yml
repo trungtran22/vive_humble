@@ -1,0 +1,26 @@
+services:
+  vive_ros:
+    image: vive_ros:humble
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+    container_name: vive_ros
+    network_mode: host
+    ipc: host
+    privileged: true
+    environment:
+      - ROS_DOMAIN_ID=${ROS_DOMAIN_ID:-0}
+      - DISPLAY=${DISPLAY}
+      - QT_X11_NO_MITSHM=1
+      - NVIDIA_VISIBLE_DEVICES=all
+      - NVIDIA_DRIVER_CAPABILITIES=all
+    volumes:
+      - /tmp/.X11-unix:/tmp/.X11-unix:rw
+      - /dev:/dev
+      # Mount your host's Steam install so vrserver can run from inside.
+      # Comment these out if you only want to run the ROS nodes (not vrserver).
+      - ${HOME}/.steam:/root/.steam:rw
+      - ${HOME}/.local/share/Steam:/root/.local/share/Steam:rw
+    devices:
+      - /dev/dri:/dev/dri
+    command: ros2 launch vive_ros vive.launch.py
